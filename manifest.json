@@ -1,6 +1,6 @@
 {
-  "name": "Offline GPX Trail Navigator",
-  "short_name": "TrailNav",
+  "name": "HikeSafe - Offline GPX Navigator",
+  "short_name": "HikeSafe",
   "description": "Offline GPX viewer and high-accuracy GPS tracker for hikers, working 100% offline in remote wilderness.",
   "start_url": "./index.html",
   "display": "standalone",

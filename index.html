@@ -1,21 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Offline GPX Trail Navigator</title>
-  
+  <title>HikeSafe - Offline GPX Viewer</title>
+
   <!-- PWA Settings -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  
+  <meta name="apple-mobile-web-app-title" content="HikeSafe">
+
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -26,9 +28,11 @@
       --border-color: #334155;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
-      --primary: #10b981; /* Neon green for route and active states */
+      --primary: #10b981;
+      /* Neon green for route and active states */
       --primary-hover: #059669;
-      --secondary: #3b82f6; /* Blue for GPS and navigation */
+      --secondary: #3b82f6;
+      /* Blue for GPS and navigation */
       --secondary-hover: #2563eb;
       --danger: #ef4444;
       --warning: #f59e0b;
@@ -42,7 +46,8 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    body, html {
+    body,
+    html {
       width: 100%;
       height: 100%;
       overflow: hidden;
@@ -159,7 +164,8 @@
       width: calc(100% - 32px);
       max-width: 350px;
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
-      display: none; /* Shown dynamically when route loaded */
+      display: none;
+      /* Shown dynamically when route loaded */
       transition: all 0.3s ease;
     }
 
@@ -246,9 +252,15 @@
       padding: 16px;
       background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 80%, rgba(15, 23, 42, 0) 100%);
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
+    }
+
+    /* Step states */
+    .step-hidden {
+      display: none !important;
     }
 
     /* Action Buttons styling */
@@ -413,7 +425,7 @@
       align-items: center;
       justify-content: center;
       transition: transform 0.2s linear;
-      filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));
+      filter: drop-shadow(0px 4px 6px rgba(0, 0, 0, 0.5));
     }
 
     .gps-arrow-icon svg {
@@ -439,7 +451,7 @@
       display: none;
       align-items: center;
       gap: 8px;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
       cursor: pointer;
     }
 
@@ -447,11 +459,14 @@
     body.survival-mode {
       background-color: #000000;
     }
+
     body.survival-mode #map {
-      opacity: 0.1; /* Dim map to save power on OLED */
+      opacity: 0.1;
+      /* Dim map to save power on OLED */
       filter: grayscale(100%);
       pointer-events: none;
     }
+
     body.survival-mode #stats-card,
     body.survival-mode header,
     body.survival-mode .map-tools {
@@ -513,53 +528,65 @@
     }
 
     @keyframes pulse {
-      0% { opacity: 0.6; transform: scale(0.98); }
-      50% { opacity: 1; transform: scale(1.02); }
-      100% { opacity: 0.6; transform: scale(0.98); }
+      0% {
+        opacity: 0.6;
+        transform: scale(0.98);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.02);
+      }
+
+      100% {
+        opacity: 0.6;
+        transform: scale(0.98);
+      }
     }
 
     /* Leaflet customization for dark mode background */
     .leaflet-container {
       background-color: var(--bg-dark) !important;
     }
+
     /* Hide Leaflet default zoom controls in favor of floating buttons if needed, or keep them styling dark */
     .leaflet-bar {
       border: 1px solid var(--border-color) !important;
       background-color: var(--panel-bg) !important;
       backdrop-filter: blur(8px);
     }
+
     .leaflet-bar a {
       background-color: transparent !important;
       color: var(--text-main) !important;
       border-bottom: 1px solid var(--border-color) !important;
     }
+
     .leaflet-bar a:hover {
       background-color: var(--border-color) !important;
     }
+
     .leaflet-control-attribution {
       background-color: rgba(15, 23, 42, 0.8) !important;
       color: var(--text-muted) !important;
       font-size: 0.65rem !important;
     }
+
     .leaflet-control-attribution a {
       color: var(--secondary) !important;
     }
   </style>
 </head>
+
 <body>
 
   <div id="app-container">
-    
+
     <!-- Top Header Bar -->
     <header>
       <div class="brand">
-        <!-- SVG Inline representation of brand icon -->
-        <svg class="brand-logo" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="512" height="512" rx="112" fill="#0f172a"/>
-          <path d="M 64 416 L 192 240 L 288 350 L 384 200 L 448 416 Z" fill="#10b981" />
-          <circle cx="384" cy="200" r="18" fill="#3b82f6" stroke="#ffffff" stroke-width="5" />
-        </svg>
-        <span class="brand-title">TrailNav</span>
+        <img src="icon.svg" class="brand-logo" alt="HikeSafe Icon" style="border-radius: 8px;">
+        <span class="brand-title">HikeSafe</span>
       </div>
       <div class="indicators">
         <!-- Wake Lock Indicator -->
@@ -610,10 +637,20 @@
 
     <!-- Floating Map Controls -->
     <div class="map-tools">
+      <!-- Clear Route button (Step 2) -->
+      <button class="tool-btn step-hidden" id="clear-route-btn" title="Clear Route"
+        style="color: var(--danger); border-color: var(--danger);">
+        <svg viewBox="0 0 24 24">
+          <path
+            d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+        </svg>
+      </button>
+
       <!-- Recenter on User Location button -->
       <button class="tool-btn" id="recenter-btn" title="Recenter Map on Me">
         <svg viewBox="0 0 24 24">
-          <path d="M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z" />
+          <path
+            d="M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z" />
         </svg>
       </button>
     </div>
@@ -622,45 +659,48 @@
     <div id="bottom-control-bar">
       <!-- Hidden file input for GPX -->
       <input type="file" id="gpx-file-input" accept=".gpx">
-      
-      <!-- Load Route Button -->
-      <button class="btn btn-dark" id="load-route-btn">
+
+      <!-- Load Route Button (Step 1) -->
+      <button class="btn btn-dark" id="load-route-btn" style="flex: 1 1 100%;">
         <svg viewBox="0 0 24 24">
           <path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z" />
         </svg>
-        Load Route
+        Load GPX Route
       </button>
 
-      <!-- Toggle Navigation Button -->
-      <button class="btn btn-secondary" id="nav-btn">
+      <!-- Toggle Navigation Button (Step 2/4) -->
+      <button class="btn btn-secondary step-hidden" id="nav-btn">
         <svg viewBox="0 0 24 24">
-          <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z" />
+          <path
+            d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z" />
         </svg>
         <span>Start Nav</span>
       </button>
 
       <!-- Install App Button (Hidden by default) -->
-      <button class="btn btn-primary" id="install-app-btn" style="display: none; background-color: #f59e0b; color: #1e293b;">
+      <button class="btn btn-primary step-hidden" id="install-app-btn"
+        style="background-color: #f59e0b; color: #1e293b;">
         <svg viewBox="0 0 24 24" style="fill: #1e293b;">
           <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" />
         </svg>
         Install App
       </button>
 
-      <!-- Survival Mode Button -->
-      <button class="btn btn-dark" id="survival-btn" style="border-color: var(--danger); color: var(--danger);">
+      <!-- Survival Mode Button (Step 4) -->
+      <button class="btn btn-dark step-hidden" id="survival-btn"
+        style="border-color: var(--danger); color: var(--danger);">
         <svg viewBox="0 0 24 24" fill="currentColor">
           <path d="M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16" />
         </svg>
-        SOS
+        SOS Mode
       </button>
 
-      <!-- Download Map Button -->
-      <button class="btn btn-dark" id="download-map-btn">
+      <!-- Download Map Button (Step 2) -->
+      <button class="btn btn-dark step-hidden" id="download-map-btn">
         <svg viewBox="0 0 24 24">
           <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" />
         </svg>
-        Map
+        Offline Map
       </button>
     </div>
 
@@ -671,7 +711,8 @@
     <div class="modal-content">
       <div class="modal-header" id="modal-title">Download Offline Map</div>
       <div class="modal-body" id="modal-body-text">
-        This downloads Map Tiles for the current trail route/visible screen area so you can navigate without cellular coverage.
+        This downloads Map Tiles for the current trail route/visible screen area so you can navigate without cellular
+        coverage.
         <div class="tile-estimate" id="tile-estimate-text">
           Estimating tile count...
         </div>
@@ -693,21 +734,28 @@
   </div>
 
   <!-- Safety Timer Modal -->
-  <div id="safety-modal" class="survival-overlay" style="background: rgba(15,23,42,0.95); z-index: 100; align-items: stretch; text-align: left; position: absolute;">
+  <div id="safety-modal" class="survival-overlay"
+    style="background: rgba(15,23,42,0.95); z-index: 100; align-items: stretch; text-align: left; position: absolute;">
     <div class="modal-content" style="margin: auto;">
       <div class="modal-header">Hiker Safety Beacon</div>
       <div class="modal-body" style="color: var(--text-main);">
-        Set a dead-man's switch. If you don't return by the time below, an SOS email with your coordinates will be sent automatically.
+        Set a dead-man's switch. If you don't return by the time below, an SOS email with your coordinates will be sent
+        automatically.
         <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
-          <input type="text" id="safety-name" placeholder="Your Name" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
-          <input type="email" id="safety-email" placeholder="Emergency Contact Email" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
-          <input type="time" id="safety-time" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%; font-family: sans-serif;">
-          <input type="text" id="safety-notes" placeholder="Trail Name / Notes" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
+          <input type="text" id="safety-name" placeholder="Your Name"
+            style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
+          <input type="email" id="safety-email" placeholder="Emergency Contact Email"
+            style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
+          <input type="time" id="safety-time"
+            style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%; font-family: sans-serif;">
+          <input type="text" id="safety-notes" placeholder="Trail Name / Notes"
+            style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
         </div>
       </div>
       <div class="modal-actions">
         <button class="btn btn-dark" style="flex: 1;" id="skip-safety-btn">Skip</button>
-        <button class="btn btn-primary" style="flex: 2; background-color: var(--danger);" id="activate-safety-btn">Activate SOS Timer</button>
+        <button class="btn btn-primary" style="flex: 2; background-color: var(--danger);"
+          id="activate-safety-btn">Activate SOS Timer</button>
       </div>
     </div>
   </div>
@@ -719,7 +767,8 @@
     <div class="coordinates-large" id="survival-coords">--/--</div>
     <div id="survival-status" style="font-weight: bold; color: var(--warning);">SEARCHING FOR NETWORK...</div>
     <a href="tel:911" class="emergency-call-btn" id="emergency-call-btn">CALL EMERGENCY SERVICES</a>
-    <button class="btn btn-dark" id="exit-survival-btn" style="margin-top: 40px; border-color: var(--border-color);">Exit Survival Mode</button>
+    <button class="btn btn-dark" id="exit-survival-btn"
+      style="margin-top: 40px; border-color: var(--border-color);">Exit Survival Mode</button>
   </div>
 
   <!-- Leaflet JS Library -->
@@ -733,12 +782,12 @@
       e.preventDefault();
       deferredPrompt = e;
       const installBtn = document.getElementById('install-app-btn');
-      if(installBtn) installBtn.style.display = 'flex';
+      if (installBtn) installBtn.style.display = 'flex';
     });
 
     window.addEventListener('DOMContentLoaded', () => {
       const installBtn = document.getElementById('install-app-btn');
-      if(installBtn) {
+      if (installBtn) {
         installBtn.addEventListener('click', async () => {
           if (deferredPrompt) {
             deferredPrompt.prompt();
@@ -762,7 +811,7 @@
     let routePolyline = null;
     let startMarker = null;
     let endMarker = null;
-    
+
     // GPS & Tracking state
     let watchId = null;
     let isTracking = false;
@@ -770,7 +819,7 @@
     let userMarker = null;
     let accuracyCircle = null;
     let autoFollow = true; // Lock map center to user GPS coordinate
-    
+
     // Route GPX parsed data
     let parsedCoordinates = [];
     let parsedElevations = [];
@@ -791,9 +840,9 @@
       const R = 6371; // Earth's radius in km
       const dLat = (lat2 - lat1) * Math.PI / 180;
       const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = 
+      const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
@@ -803,7 +852,7 @@
     function lon2tile(lon, zoom) {
       return Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
     }
-    
+
     function lat2tile(lat, zoom) {
       const latRad = lat * Math.PI / 180;
       return Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * Math.pow(2, zoom));
@@ -833,8 +882,8 @@
 
     // --- Initialize Leaflet Map ---
     function initMap() {
-      // Default initial view: Mount Rainier trailhead coords or Seattle area (overridden when GPX loaded)
-      const defaultCenter = [46.8523, -121.7603]; 
+      // Default initial view: Kuala Lumpur
+      const defaultCenter = [3.1390, 101.6869];
       const defaultZoom = 13;
 
       map = L.map('map', {
@@ -842,6 +891,15 @@
         maxZoom: 18,
         minZoom: 2
       }).setView(defaultCenter, defaultZoom);
+
+      // Attempt to get user's real location immediately for default view
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          if (!routePolyline && !isTracking) {
+            map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+          }
+        }, err => console.log('Init GPS silent err:', err));
+      }
 
       // standard OSM tile layer (URLs will be intercepted by the Service Worker)
       osmLayer = L.tileLayer(OSM_TILE_URL, {
@@ -857,6 +915,33 @@
       });
     }
 
+    // --- UX Flow Control ---
+    function setUXStep(step) {
+      const loadBtn = document.getElementById('load-route-btn');
+      const navBtn = document.getElementById('nav-btn');
+      const mapBtn = document.getElementById('download-map-btn');
+      const survivalBtn = document.getElementById('survival-btn');
+      const clearBtn = document.getElementById('clear-route-btn');
+
+      loadBtn.classList.add('step-hidden');
+      navBtn.classList.add('step-hidden');
+      mapBtn.classList.add('step-hidden');
+      survivalBtn.classList.add('step-hidden');
+      clearBtn.classList.add('step-hidden');
+
+      if (step === 1) { // Landing
+        loadBtn.classList.remove('step-hidden');
+      } else if (step === 2) { // Route Loaded
+        navBtn.classList.remove('step-hidden');
+        mapBtn.classList.remove('step-hidden');
+        clearBtn.classList.remove('step-hidden');
+      } else if (step === 4) { // Active Nav
+        navBtn.classList.remove('step-hidden');
+        survivalBtn.classList.remove('step-hidden');
+        clearBtn.classList.remove('step-hidden');
+      }
+    }
+
     // --- Screen Wake Lock API ---
     async function requestWakeLock() {
       if ('wakeLock' in navigator) {
@@ -864,7 +949,7 @@
           wakeLock = await navigator.wakeLock.request('screen');
           console.log('Screen Wake Lock is active.');
           updateWakeLockUI(true);
-          
+
           wakeLock.addEventListener('release', () => {
             console.log('Screen Wake Lock was released.');
             updateWakeLockUI(false);
@@ -915,11 +1000,11 @@
       isTracking = true;
       setAutoFollow(true);
       requestWakeLock();
-      
+
       if (map) {
         map.setZoom(18); // Zoom in tightly for active navigation
       }
-      
+
       const gpsDot = document.getElementById('gps-dot');
       gpsDot.className = 'dot dot-warning'; // Yellow means searching
       document.getElementById('gps-accuracy-text').textContent = 'Locating...';
@@ -947,8 +1032,11 @@
       navBtn.classList.remove('btn-secondary');
       navBtn.classList.add('btn-primary');
       navBtn.querySelector('span').textContent = 'Stop Nav';
+      navBtn.style.flex = '1 1 100%';
       // Icon update to standard stop square
       navBtn.querySelector('svg').innerHTML = '<path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M9,9H15V15H9V9Z" />';
+
+      setUXStep(4);
     }
 
     function stopTracking() {
@@ -958,7 +1046,7 @@
         watchId = null;
       }
       releaseWakeLock();
-      
+
       // Stop compass listening
       if (window.DeviceOrientationEvent) {
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
@@ -985,10 +1073,13 @@
       navBtn.classList.remove('btn-primary');
       navBtn.classList.add('btn-secondary');
       navBtn.querySelector('span').textContent = 'Start Nav';
+      navBtn.style.flex = '1';
       // Reset icon to play/plus symbol
       navBtn.querySelector('svg').innerHTML = '<path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z" />';
-      
+
       document.getElementById('stat-remaining').textContent = '--';
+
+      setUXStep(2);
     }
 
     let currentHeading = 0;
@@ -1000,7 +1091,7 @@
       } else if (event.absolute && event.alpha !== null) {
         heading = 360 - event.alpha; // Android
       }
-      
+
       if (heading !== null) {
         currentHeading = heading;
         updateUserMarkerRotation();
@@ -1020,12 +1111,12 @@
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
       const accuracy = position.coords.accuracy;
-      
+
       // Prefer GPS heading if moving, fallback to compass
       if (position.coords.heading !== null && !isNaN(position.coords.heading) && position.coords.speed > 1) {
         currentHeading = position.coords.heading;
       }
-      
+
       userLatLng = L.latLng(lat, lon);
 
       // Update GPS accuracy UI badges
@@ -1084,10 +1175,10 @@
 
     function onLocationError(error) {
       console.error('GPS tracking error code:', error.code, 'message:', error.message);
-      
+
       const gpsDot = document.getElementById('gps-dot');
       gpsDot.className = 'dot dot-inactive';
-      
+
       let errorMsg = 'GPS Err';
       if (error.code === 1) {
         errorMsg = 'Perm Denied';
@@ -1098,7 +1189,7 @@
       } else if (error.code === 3) {
         errorMsg = 'GPS Timeout';
       }
-      
+
       document.getElementById('gps-accuracy-text').textContent = errorMsg;
       document.getElementById('gps-badge').style.borderColor = 'var(--danger)';
     }
@@ -1151,7 +1242,7 @@
       try {
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(gpxContent, "text/xml");
-        
+
         // Check for XML parsing error
         const parseError = xmlDoc.getElementsByTagName("parsererror");
         if (parseError.length > 0) {
@@ -1172,13 +1263,14 @@
         } else {
           parseGpxNodes(trkpts);
         }
-        
+
         if (parsedCoordinates.length === 0) {
           throw new Error("Failed to parse valid coordinate pairs.");
         }
 
         renderRouteOnMap();
         updateRouteStatsUI();
+        setUXStep(2);
       } catch (err) {
         alert("Error parsing GPX file: " + err.message);
         console.error(err);
@@ -1199,7 +1291,7 @@
       points.forEach(pt => {
         const lat = parseFloat(pt.getAttribute("lat"));
         const lon = parseFloat(pt.getAttribute("lon"));
-        
+
         if (!isNaN(lat) && !isNaN(lon)) {
           parsedCoordinates.push([lat, lon]);
 
@@ -1287,7 +1379,7 @@
 
       startMarker = L.marker(startCoord, { icon: startIcon }).addTo(map)
         .bindPopup("<b>Route Start Point</b>");
-      
+
       endMarker = L.marker(endCoord, { icon: endIcon }).addTo(map)
         .bindPopup("<b>Route Destination</b>");
     }
@@ -1358,7 +1450,7 @@
       }
 
       const approxSizeMb = (totalDownloadSize * 0.025).toFixed(1); // Assume 25KB per tile average size
-      
+
       let htmlContent = `
         Area Bounding Box: 
         <br>North: ${bounds.getNorth().toFixed(4)}°, South: ${bounds.getSouth().toFixed(4)}°
@@ -1462,7 +1554,7 @@
               // Fetch tile, with timeout protection
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 10000);
-              
+
               const response = await fetch(url, { signal: controller.signal });
               clearTimeout(timeoutId);
 
@@ -1475,7 +1567,7 @@
           } finally {
             activeDownloads--;
             completedDownloadSize++;
-            
+
             // Update UI progress safely
             const percent = Math.round((completedDownloadSize / totalCount) * 100);
             progressFill.style.width = `${percent}%`;
@@ -1502,7 +1594,7 @@
         progressText.style.color = "var(--primary)";
         progressPercentage.textContent = "100%";
         progressFill.style.backgroundColor = "var(--primary)";
-        
+
         modalButtons.innerHTML = `
           <button class="btn btn-primary" style="width: 100%;" id="close-modal-btn" onclick="closeDownloadModal()">Done</button>
         `;
@@ -1515,7 +1607,7 @@
 
     function openSafetyModal() {
       document.getElementById('safety-modal').style.display = 'flex';
-      
+
       // Request device orientation permissions if iOS 13+ (must be triggered by user action)
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().catch(console.error);
@@ -1531,17 +1623,17 @@
       const email = document.getElementById('safety-email').value;
       const time = document.getElementById('safety-time').value;
       const notes = document.getElementById('safety-notes').value;
-      
+
       if (!name || !email || !time) {
         alert('Please fill in Name, Email, and Return Time to activate the SOS beacon.');
         return;
       }
-      
+
       // The deployed Google App Script Web App URL
-      const APP_SCRIPT_URL = 'https://script.google.com/macros/s/DUMMY_URL/exec';
-      
+      const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbycOpuBL3MU9TLSlR7C_YThHZrg8e6fvZp11RAzSSfo2sQsTYFQhCoN0-dpgz9DMuBWfA/exec';
+
       safetyJobId = Math.random().toString(36).substring(7); // Generate unique job ID
-      
+
       // Perform background fetch (using no-cors or standard POST)
       fetch(APP_SCRIPT_URL, {
         method: 'POST',
@@ -1558,21 +1650,21 @@
           notes: notes
         })
       }).catch(e => console.error("SOS Network Error:", e));
-      
+
       safetyTimerActive = true;
-      
+
       const badge = document.getElementById('safety-timer-badge');
       badge.style.display = 'flex';
       document.getElementById('safety-timer-countdown').textContent = `SOS: ${time}`;
-      
+
       closeSafetyModal();
       startTracking();
     }
-    
+
     function cancelSafetyTimer() {
       if (confirm('Are you safe? This will cancel the automatic SOS email.')) {
-        const APP_SCRIPT_URL = 'https://script.google.com/macros/s/DUMMY_URL/exec';
-        
+        const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbycOpuBL3MU9TLSlR7C_YThHZrg8e6fvZp11RAzSSfo2sQsTYFQhCoN0-dpgz9DMuBWfA/exec';
+
         fetch(APP_SCRIPT_URL, {
           method: 'POST',
           mode: 'no-cors',
@@ -1600,12 +1692,12 @@
       survivalModeActive = !survivalModeActive;
       const overlay = document.getElementById('survival-overlay');
       const body = document.body;
-      
+
       if (survivalModeActive) {
         body.classList.add('survival-mode');
         // If GPS is tracking, keep it on but reduce polling overhead visually by hiding map
         if (!isTracking) startTracking();
-        
+
         // Start polling for signal
         startSurvivalPolling();
       } else {
@@ -1623,7 +1715,7 @@
         if (userLatLng) {
           document.getElementById('survival-coords').textContent = `${userLatLng.lat.toFixed(5)}, ${userLatLng.lng.toFixed(5)}`;
         }
-        
+
         // Attempt fetch to detect internet
         fetch('https://1.1.1.1/cdn-cgi/trace', { mode: 'no-cors', cache: 'no-store' })
           .then(() => {
@@ -1634,7 +1726,7 @@
             // Still offline
             console.log('Survival Mode: No signal detected.');
           });
-      }, 10000); 
+      }, 10000);
     }
 
     function stopSurvivalPolling() {
@@ -1646,14 +1738,14 @@
 
     function handleSignalFound() {
       stopSurvivalPolling();
-      
+
       // Update UI
       const statusEl = document.getElementById('survival-status');
       statusEl.textContent = 'SIGNAL FOUND - SOS MESSAGE SENT!';
       statusEl.style.color = 'var(--primary)';
-      
+
       document.getElementById('emergency-call-btn').style.display = 'block';
-      
+
       // Play loud siren sound (browser may block if not interacted)
       try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1667,13 +1759,23 @@
       } catch (e) {
         console.error("Audio playback failed", e);
       }
-      
+
       // Here we would fire the fetch to send the actual SOS message with coordinates
       console.log('SENDING EMERGENCY SOS PAYLOAD:', userLatLng);
     }
 
     // --- Setup DOM Events ---
     function setupEventListeners() {
+      // Clear Route
+      document.getElementById('clear-route-btn').addEventListener('click', () => {
+        if (routePolyline) map.removeLayer(routePolyline);
+        if (startMarker) map.removeLayer(startMarker);
+        if (endMarker) map.removeLayer(endMarker);
+        document.getElementById('stats-card').style.display = 'none';
+        if (isTracking) stopTracking();
+        setUXStep(1);
+      });
+
       // Hidden input click triggers
       document.getElementById('load-route-btn').addEventListener('click', () => {
         document.getElementById('gpx-file-input').click();
@@ -1711,17 +1813,17 @@
           openSafetyModal();
         }
       });
-      
+
       // Safety Modal Buttons
       document.getElementById('skip-safety-btn').addEventListener('click', () => {
         closeSafetyModal();
         startTracking();
       });
-      
+
       document.getElementById('activate-safety-btn').addEventListener('click', () => {
         activateSafetyTimer();
       });
-      
+
       document.getElementById('safety-timer-badge').addEventListener('click', cancelSafetyTimer);
 
       // Survival Mode Buttons
@@ -1732,7 +1834,7 @@
       document.getElementById('download-map-btn').addEventListener('click', () => {
         openDownloadModal();
       });
-      
+
       // Close modal on background click
       document.getElementById('cache-modal').addEventListener('click', (e) => {
         if (e.target.id === 'cache-modal') {
@@ -1745,7 +1847,9 @@
     window.addEventListener('DOMContentLoaded', () => {
       initMap();
       setupEventListeners();
+      setUXStep(1); // Set initial state
     });
   </script>
 </body>
+
 </html>
