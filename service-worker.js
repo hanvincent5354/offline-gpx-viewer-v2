@@ -1,5 +1,5 @@
-const CACHE_NAME = 'trailnav-static-v1';
-const TILE_CACHE_NAME = 'offline-map-tiles';
+const CACHE_NAME = 'trailnav-cache-v2';
+const TILE_CACHE_NAME = 'trailnav-tiles-v1';
 
 // Core assets to pre-cache for offline startup
 const STATIC_ASSETS = [
