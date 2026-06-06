@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Offline GPX Trail Navigator</title>
+  
+  <!-- PWA Settings -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root {
+      --bg-dark: #0f172a;
+      --panel-bg: rgba(30, 41, 59, 0.85);
+      --border-color: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #10b981; /* Neon green for route and active states */
+      --primary-hover: #059669;
+      --secondary: #3b82f6; /* Blue for GPS and navigation */
+      --secondary-hover: #2563eb;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --font-family: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: var(--bg-dark);
+      font-family: var(--font-family);
+      color: var(--text-main);
+    }
+
+    /* Layout Wrapper */
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+      position: relative;
+    }
+
+    /* Fullscreen Leaflet Map */
+    #map {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Header Bar (Transparent Overlay) */
+    header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: 12px 16px;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: linear-gradient(to bottom, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0) 100%);
+      pointer-events: none;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+    }
+
+    .brand-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Indicators */
+    .indicators {
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(8px);
+      font-size: 0.75rem;
+      font-weight: 600;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-active {
+      background-color: var(--primary);
+      box-shadow: 0 0 8px var(--primary);
+      animation: pulse 1.5s infinite;
+    }
+
+    .dot-inactive {
+      background-color: var(--danger);
+    }
+
+    .dot-warning {
+      background-color: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    /* Floating Stats Card (Top Left) */
+    #stats-card {
+      position: absolute;
+      top: 70px;
+      left: 16px;
+      z-index: 10;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 14px;
+      width: calc(100% - 32px);
+      max-width: 350px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+      display: none; /* Shown dynamically when route loaded */
+      transition: all 0.3s ease;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .stat-box {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 2px;
+    }
+
+    .stat-value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .stat-value.accent {
+      color: var(--primary);
+    }
+
+    /* Floating Map Tool Buttons (Right Column) */
+    .map-tools {
+      position: absolute;
+      right: 16px;
+      bottom: 110px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .tool-btn {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(8px);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+      transition: all 0.2s ease;
+    }
+
+    .tool-btn:active {
+      transform: scale(0.92);
+      background-color: var(--border-color);
+    }
+
+    .tool-btn svg {
+      width: 24px;
+      height: 24px;
+      fill: currentColor;
+    }
+
+    .tool-btn.active {
+      color: var(--secondary);
+      border-color: var(--secondary);
+      box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+    }
+
+    /* Bottom Control Bar */
+    #bottom-control-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      z-index: 10;
+      padding: 16px;
+      background: linear-gradient(to top, rgba(15, 23, 42, 0.95) 80%, rgba(15, 23, 42, 0) 100%);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Action Buttons styling */
+    .btn {
+      flex: 1;
+      height: 52px;
+      border-radius: 14px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      color: #ffffff;
+      padding: 0 16px;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+    }
+
+    .btn-primary:active {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--secondary);
+    }
+
+    .btn-secondary:active {
+      background-color: var(--secondary-hover);
+    }
+
+    .btn-dark {
+      background-color: #334155;
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-dark:active {
+      background-color: #475569;
+    }
+
+    .btn svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+    }
+
+    /* Hidden File Input */
+    #gpx-file-input {
+      display: none;
+    }
+
+    /* Cache Offline Dialog */
+    #cache-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 100;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+
+    #cache-modal.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-content {
+      background: #1e293b;
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+
+    .modal-header {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+
+    .modal-body {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+
+    .tile-estimate {
+      margin-top: 12px;
+      background: rgba(15, 23, 42, 0.4);
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px dashed var(--border-color);
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    /* Progress Bar */
+    .progress-container {
+      margin-top: 16px;
+      display: none;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(15, 23, 42, 0.6);
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.1s linear;
+    }
+
+    .progress-status {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* Custom Leaflet Geolocation Markers CSS */
+    .gps-arrow-icon {
+      position: relative;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s linear;
+      filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));
+    }
+
+    .gps-arrow-icon svg {
+      width: 100%;
+      height: 100%;
+      fill: var(--secondary);
+      stroke: #ffffff;
+      stroke-width: 2px;
+    }
+
+    /* Safety Timer Indicator */
+    #safety-timer-badge {
+      position: absolute;
+      top: 70px;
+      right: 16px;
+      z-index: 10;
+      background: var(--danger);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.4);
+      cursor: pointer;
+    }
+
+    /* Survival Mode Global State */
+    body.survival-mode {
+      background-color: #000000;
+    }
+    body.survival-mode #map {
+      opacity: 0.1; /* Dim map to save power on OLED */
+      filter: grayscale(100%);
+      pointer-events: none;
+    }
+    body.survival-mode #stats-card,
+    body.survival-mode header,
+    body.survival-mode .map-tools {
+      display: none !important;
+    }
+
+    .survival-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.95);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+
+    body.survival-mode .survival-overlay {
+      display: flex;
+    }
+
+    .survival-overlay h1 {
+      color: var(--danger);
+      font-size: 2rem;
+      margin-bottom: 16px;
+      animation: pulse 2s infinite;
+    }
+
+    .survival-overlay p {
+      color: var(--text-muted);
+      margin-bottom: 32px;
+    }
+
+    .survival-overlay .coordinates-large {
+      font-size: 2.5rem;
+      font-family: monospace;
+      color: var(--primary);
+      margin-bottom: 24px;
+      word-break: break-all;
+    }
+
+    .emergency-call-btn {
+      background-color: var(--danger);
+      color: white;
+      border: none;
+      padding: 16px 32px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border-radius: 12px;
+      display: none;
+      text-decoration: none;
+      margin-top: 24px;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.6; transform: scale(0.98); }
+      50% { opacity: 1; transform: scale(1.02); }
+      100% { opacity: 0.6; transform: scale(0.98); }
+    }
+
+    /* Leaflet customization for dark mode background */
+    .leaflet-container {
+      background-color: var(--bg-dark) !important;
+    }
+    /* Hide Leaflet default zoom controls in favor of floating buttons if needed, or keep them styling dark */
+    .leaflet-bar {
+      border: 1px solid var(--border-color) !important;
+      background-color: var(--panel-bg) !important;
+      backdrop-filter: blur(8px);
+    }
+    .leaflet-bar a {
+      background-color: transparent !important;
+      color: var(--text-main) !important;
+      border-bottom: 1px solid var(--border-color) !important;
+    }
+    .leaflet-bar a:hover {
+      background-color: var(--border-color) !important;
+    }
+    .leaflet-control-attribution {
+      background-color: rgba(15, 23, 42, 0.8) !important;
+      color: var(--text-muted) !important;
+      font-size: 0.65rem !important;
+    }
+    .leaflet-control-attribution a {
+      color: var(--secondary) !important;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    
+    <!-- Top Header Bar -->
+    <header>
+      <div class="brand">
+        <!-- SVG Inline representation of brand icon -->
+        <svg class="brand-logo" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="512" height="512" rx="112" fill="#0f172a"/>
+          <path d="M 64 416 L 192 240 L 288 350 L 384 200 L 448 416 Z" fill="#10b981" />
+          <circle cx="384" cy="200" r="18" fill="#3b82f6" stroke="#ffffff" stroke-width="5" />
+        </svg>
+        <span class="brand-title">TrailNav</span>
+      </div>
+      <div class="indicators">
+        <!-- Wake Lock Indicator -->
+        <div class="status-badge" id="wakelock-badge">
+          <span class="dot dot-inactive" id="wakelock-dot"></span>
+          <span>Wake Lock</span>
+        </div>
+        <!-- GPS Status Indicator -->
+        <div class="status-badge" id="gps-badge">
+          <span class="dot dot-inactive" id="gps-dot"></span>
+          <span id="gps-accuracy-text">GPS Off</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Floating Statistics Card -->
+    <div id="stats-card">
+      <div class="stats-grid">
+        <div class="stat-box">
+          <span class="stat-label">Total Distance</span>
+          <span class="stat-value accent" id="stat-distance">0.0 km</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Elev. Profile</span>
+          <span class="stat-value" id="stat-elevation">+0m / -0m</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Track Points</span>
+          <span class="stat-value" id="stat-points">0</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Remaining</span>
+          <span class="stat-value" id="stat-remaining">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Safety Timer Badge -->
+    <div id="safety-timer-badge">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+        <path d="M12 2L1 21H23M12 6L19.53 19H4.47M11 10V14H13V10M11 16V18H13V16" />
+      </svg>
+      <span id="safety-timer-countdown">SOS Timer</span>
+    </div>
+
+    <!-- Main Map -->
+    <div id="map"></div>
+
+    <!-- Floating Map Controls -->
+    <div class="map-tools">
+      <!-- Recenter on User Location button -->
+      <button class="tool-btn" id="recenter-btn" title="Recenter Map on Me">
+        <svg viewBox="0 0 24 24">
+          <path d="M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6Z" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Bottom Buttons Menu -->
+    <div id="bottom-control-bar">
+      <!-- Hidden file input for GPX -->
+      <input type="file" id="gpx-file-input" accept=".gpx">
+      
+      <!-- Load Route Button -->
+      <button class="btn btn-dark" id="load-route-btn">
+        <svg viewBox="0 0 24 24">
+          <path d="M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z" />
+        </svg>
+        Load Route
+      </button>
+
+      <!-- Toggle Navigation Button -->
+      <button class="btn btn-secondary" id="nav-btn">
+        <svg viewBox="0 0 24 24">
+          <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z" />
+        </svg>
+        <span>Start Nav</span>
+      </button>
+
+      <!-- Install App Button (Hidden by default) -->
+      <button class="btn btn-primary" id="install-app-btn" style="display: none; background-color: #f59e0b; color: #1e293b;">
+        <svg viewBox="0 0 24 24" style="fill: #1e293b;">
+          <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" />
+        </svg>
+        Install App
+      </button>
+
+      <!-- Survival Mode Button -->
+      <button class="btn btn-dark" id="survival-btn" style="border-color: var(--danger); color: var(--danger);">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12,2L1,21H23M12,6L19.53,19H4.47M11,10V14H13V10M11,16V18H13V16" />
+        </svg>
+        SOS
+      </button>
+
+      <!-- Download Map Button -->
+      <button class="btn btn-dark" id="download-map-btn">
+        <svg viewBox="0 0 24 24">
+          <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z" />
+        </svg>
+        Map
+      </button>
+    </div>
+
+  </div>
+
+  <!-- Cache Dialog Modal -->
+  <div id="cache-modal">
+    <div class="modal-content">
+      <div class="modal-header" id="modal-title">Download Offline Map</div>
+      <div class="modal-body" id="modal-body-text">
+        This downloads Map Tiles for the current trail route/visible screen area so you can navigate without cellular coverage.
+        <div class="tile-estimate" id="tile-estimate-text">
+          Estimating tile count...
+        </div>
+        <div class="progress-container" id="progress-container">
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progress-bar"></div>
+          </div>
+          <div class="progress-status">
+            <span id="progress-text">Preparing...</span>
+            <span id="progress-percentage">0%</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions" id="modal-buttons">
+        <button class="btn btn-dark" style="flex: 1;" id="close-modal-btn">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1.5;" id="confirm-download-btn">Start Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Safety Timer Modal -->
+  <div id="safety-modal" class="survival-overlay" style="background: rgba(15,23,42,0.95); z-index: 100; align-items: stretch; text-align: left; position: absolute;">
+    <div class="modal-content" style="margin: auto;">
+      <div class="modal-header">Hiker Safety Beacon</div>
+      <div class="modal-body" style="color: var(--text-main);">
+        Set a dead-man's switch. If you don't return by the time below, an SOS email with your coordinates will be sent automatically.
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <input type="text" id="safety-name" placeholder="Your Name" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
+          <input type="email" id="safety-email" placeholder="Emergency Contact Email" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
+          <input type="time" id="safety-time" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%; font-family: sans-serif;">
+          <input type="text" id="safety-notes" placeholder="Trail Name / Notes" style="padding: 12px; border-radius: 8px; background: #334155; border: none; color: white; width: 100%;">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-dark" style="flex: 1;" id="skip-safety-btn">Skip</button>
+        <button class="btn btn-primary" style="flex: 2; background-color: var(--danger);" id="activate-safety-btn">Activate SOS Timer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Survival Mode Overlay -->
+  <div class="survival-overlay" id="survival-overlay">
+    <h1>SOS SURVIVAL MODE</h1>
+    <p>Battery saving active. Polling for signal...</p>
+    <div class="coordinates-large" id="survival-coords">--/--</div>
+    <div id="survival-status" style="font-weight: bold; color: var(--warning);">SEARCHING FOR NETWORK...</div>
+    <a href="tel:911" class="emergency-call-btn" id="emergency-call-btn">CALL EMERGENCY SERVICES</a>
+    <button class="btn btn-dark" id="exit-survival-btn" style="margin-top: 40px; border-color: var(--border-color);">Exit Survival Mode</button>
+  </div>
+
+  <!-- Leaflet JS Library -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Application Logic -->
+  <script>
+    // --- PWA Install Logic ---
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('install-app-btn');
+      if(installBtn) installBtn.style.display = 'flex';
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const installBtn = document.getElementById('install-app-btn');
+      if(installBtn) {
+        installBtn.addEventListener('click', async () => {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+              installBtn.style.display = 'none';
+            }
+            deferredPrompt = null;
+          }
+        });
+      }
+    });
+
+    // --- Application Constants & State ---
+    const TILE_CACHE_NAME = 'offline-map-tiles';
+    const OSM_TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const MAX_TILE_LIMIT = 1500; // Warning threshold to prevent heavy downloads
+
+    let map = null;
+    let osmLayer = null;
+    let routePolyline = null;
+    let startMarker = null;
+    let endMarker = null;
+    
+    // GPS & Tracking state
+    let watchId = null;
+    let isTracking = false;
+    let userLatLng = null;
+    let userMarker = null;
+    let accuracyCircle = null;
+    let autoFollow = true; // Lock map center to user GPS coordinate
+    
+    // Route GPX parsed data
+    let parsedCoordinates = [];
+    let parsedElevations = [];
+    let totalDistanceKm = 0;
+    let elevationGainM = 0;
+    let elevationLossM = 0;
+
+    // Wake Lock state
+    let wakeLock = null;
+
+    // Concurrency variable for downloading tiles
+    let activeDownloads = 0;
+    let stopDownloadRequested = false;
+
+    // --- Geolocation Calculations ---
+    // Haversine Formula for distance calculation
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371; // Earth's radius in km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    // Convert GPS Coordinate to Tile Coordinates (OpenStreetMap specification)
+    function lon2tile(lon, zoom) {
+      return Math.floor((lon + 180) / 360 * Math.pow(2, zoom));
+    }
+    
+    function lat2tile(lat, zoom) {
+      const latRad = lat * Math.PI / 180;
+      return Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * Math.pow(2, zoom));
+    }
+
+    function tile2lon(x, z) {
+      return (x / Math.pow(2, z) * 360 - 180);
+    }
+
+    function tile2lat(y, z) {
+      const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+      return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+    }
+
+    // --- Service Worker Registration ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then((registration) => {
+            console.log('Service Worker registered successfully. Scope:', registration.scope);
+          })
+          .catch((error) => {
+            console.error('Service Worker registration failed:', error);
+          });
+      });
+    }
+
+    // --- Initialize Leaflet Map ---
+    function initMap() {
+      // Default initial view: Mount Rainier trailhead coords or Seattle area (overridden when GPX loaded)
+      const defaultCenter = [46.8523, -121.7603]; 
+      const defaultZoom = 13;
+
+      map = L.map('map', {
+        zoomControl: true,
+        maxZoom: 18,
+        minZoom: 2
+      }).setView(defaultCenter, defaultZoom);
+
+      // standard OSM tile layer (URLs will be intercepted by the Service Worker)
+      osmLayer = L.tileLayer(OSM_TILE_URL, {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 18
+      }).addTo(map);
+
+      // Handle map dragging to temporarily suspend auto-follow
+      map.on('dragstart', () => {
+        if (isTracking && autoFollow) {
+          setAutoFollow(false);
+        }
+      });
+    }
+
+    // --- Screen Wake Lock API ---
+    async function requestWakeLock() {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+          console.log('Screen Wake Lock is active.');
+          updateWakeLockUI(true);
+          
+          wakeLock.addEventListener('release', () => {
+            console.log('Screen Wake Lock was released.');
+            updateWakeLockUI(false);
+          });
+        } catch (err) {
+          console.error(`Wake Lock error: ${err.name}, ${err.message}`);
+          updateWakeLockUI(false);
+        }
+      } else {
+        console.warn('Wake Lock API is not supported in this browser.');
+      }
+    }
+
+    function releaseWakeLock() {
+      if (wakeLock) {
+        wakeLock.release();
+        wakeLock = null;
+        updateWakeLockUI(false);
+      }
+    }
+
+    function updateWakeLockUI(active) {
+      const dot = document.getElementById('wakelock-dot');
+      const badge = document.getElementById('wakelock-badge');
+      if (active) {
+        dot.className = 'dot dot-active';
+        badge.style.borderColor = 'var(--primary)';
+      } else {
+        dot.className = 'dot dot-inactive';
+        badge.style.borderColor = 'var(--border-color)';
+      }
+    }
+
+    // Re-acquire wake lock if page visibility changes back to visible
+    document.addEventListener('visibilitychange', async () => {
+      if (wakeLock !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+      }
+    });
+
+    // --- High-Accuracy Geolocation Tracking ---
+    function startTracking() {
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your device.');
+        return;
+      }
+
+      isTracking = true;
+      setAutoFollow(true);
+      requestWakeLock();
+      
+      if (map) {
+        map.setZoom(18); // Zoom in tightly for active navigation
+      }
+      
+      const gpsDot = document.getElementById('gps-dot');
+      gpsDot.className = 'dot dot-warning'; // Yellow means searching
+      document.getElementById('gps-accuracy-text').textContent = 'Locating...';
+
+      const options = {
+        enableHighAccuracy: true,  // Force hardware GPS
+        timeout: 15000,            // 15 seconds timeout
+        maximumAge: 0              // No cached locations
+      };
+
+      watchId = navigator.geolocation.watchPosition(
+        onLocationSuccess,
+        onLocationError,
+        options
+      );
+
+      // Listen for compass heading
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.addEventListener('deviceorientation', handleOrientation, true);
+      }
+
+      // Update Navigation button styling
+      const navBtn = document.getElementById('nav-btn');
+      navBtn.classList.remove('btn-secondary');
+      navBtn.classList.add('btn-primary');
+      navBtn.querySelector('span').textContent = 'Stop Nav';
+      // Icon update to standard stop square
+      navBtn.querySelector('svg').innerHTML = '<path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M9,9H15V15H9V9Z" />';
+    }
+
+    function stopTracking() {
+      isTracking = false;
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      releaseWakeLock();
+      
+      // Stop compass listening
+      if (window.DeviceOrientationEvent) {
+        window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.removeEventListener('deviceorientation', handleOrientation, true);
+      }
+
+      // Remove GPS marker and circle
+      if (userMarker) {
+        map.removeLayer(userMarker);
+        userMarker = null;
+      }
+      if (accuracyCircle) {
+        map.removeLayer(accuracyCircle);
+        accuracyCircle = null;
+      }
+
+      const gpsDot = document.getElementById('gps-dot');
+      gpsDot.className = 'dot dot-inactive';
+      document.getElementById('gps-accuracy-text').textContent = 'GPS Off';
+      document.getElementById('gps-badge').style.borderColor = 'var(--border-color)';
+
+      // Update Navigation button styling
+      const navBtn = document.getElementById('nav-btn');
+      navBtn.classList.remove('btn-primary');
+      navBtn.classList.add('btn-secondary');
+      navBtn.querySelector('span').textContent = 'Start Nav';
+      // Reset icon to play/plus symbol
+      navBtn.querySelector('svg').innerHTML = '<path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M11,6V11H6V13H11V18H13V13H18V11H13V6H11Z" />';
+      
+      document.getElementById('stat-remaining').textContent = '--';
+    }
+
+    let currentHeading = 0;
+
+    function handleOrientation(event) {
+      let heading = null;
+      if (event.webkitCompassHeading) {
+        heading = event.webkitCompassHeading; // iOS
+      } else if (event.absolute && event.alpha !== null) {
+        heading = 360 - event.alpha; // Android
+      }
+      
+      if (heading !== null) {
+        currentHeading = heading;
+        updateUserMarkerRotation();
+      }
+    }
+
+    function updateUserMarkerRotation() {
+      if (userMarker && userMarker._icon) {
+        const arrow = userMarker._icon.querySelector('.gps-arrow-icon');
+        if (arrow) {
+          arrow.style.transform = `rotate(${currentHeading}deg)`;
+        }
+      }
+    }
+
+    function onLocationSuccess(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+      
+      // Prefer GPS heading if moving, fallback to compass
+      if (position.coords.heading !== null && !isNaN(position.coords.heading) && position.coords.speed > 1) {
+        currentHeading = position.coords.heading;
+      }
+      
+      userLatLng = L.latLng(lat, lon);
+
+      // Update GPS accuracy UI badges
+      const gpsDot = document.getElementById('gps-dot');
+      const gpsBadge = document.getElementById('gps-badge');
+      gpsDot.className = 'dot dot-active';
+      gpsBadge.style.borderColor = 'var(--primary)';
+      document.getElementById('gps-accuracy-text').textContent = `±${Math.round(accuracy)}m`;
+
+      // Update User Marker (Directional Arrow)
+      const arrowIcon = L.divIcon({
+        className: 'gps-arrow-icon-wrapper',
+        html: `
+          <div class="gps-arrow-icon" style="transform: rotate(${currentHeading}deg)">
+            <svg viewBox="0 0 24 24">
+              <!-- Arrow pointing UP by default -->
+              <path d="M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z" />
+            </svg>
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+
+      if (!userMarker) {
+        userMarker = L.marker(userLatLng, { icon: arrowIcon }).addTo(map);
+      } else {
+        userMarker.setLatLng(userLatLng);
+        userMarker.setIcon(arrowIcon);
+      }
+
+      // Update Accuracy Circle
+      if (!accuracyCircle) {
+        accuracyCircle = L.circle(userLatLng, {
+          radius: accuracy,
+          color: 'var(--secondary)',
+          fillColor: 'var(--secondary)',
+          fillOpacity: 0.15,
+          weight: 1
+        }).addTo(map);
+      } else {
+        accuracyCircle.setLatLng(userLatLng);
+        accuracyCircle.setRadius(accuracy);
+      }
+
+      // Auto-follow logic: Lock center
+      if (autoFollow) {
+        map.panTo(userLatLng, { animate: true });
+      }
+
+      // Calculate distance remaining to route end
+      if (parsedCoordinates.length > 0) {
+        calculateDistanceRemaining(userLatLng);
+      }
+    }
+
+    function onLocationError(error) {
+      console.error('GPS tracking error code:', error.code, 'message:', error.message);
+      
+      const gpsDot = document.getElementById('gps-dot');
+      gpsDot.className = 'dot dot-inactive';
+      
+      let errorMsg = 'GPS Err';
+      if (error.code === 1) {
+        errorMsg = 'Perm Denied';
+        alert('Please enable location services permissions to navigate.');
+        stopTracking();
+      } else if (error.code === 2) {
+        errorMsg = 'GPS Signal Lost';
+      } else if (error.code === 3) {
+        errorMsg = 'GPS Timeout';
+      }
+      
+      document.getElementById('gps-accuracy-text').textContent = errorMsg;
+      document.getElementById('gps-badge').style.borderColor = 'var(--danger)';
+    }
+
+    function setAutoFollow(enabled) {
+      autoFollow = enabled;
+      const btn = document.getElementById('recenter-btn');
+      if (enabled) {
+        btn.classList.add('active');
+        if (userLatLng) {
+          map.setView(userLatLng, Math.max(map.getZoom(), 15));
+        }
+      } else {
+        btn.classList.remove('active');
+      }
+    }
+
+    // Calculate remaining distance from current position to the end of the GPX route
+    function calculateDistanceRemaining(currentLatLng) {
+      // Find the closest point along the route
+      let minDistance = Infinity;
+      let closestIdx = -1;
+
+      for (let i = 0; i < parsedCoordinates.length; i++) {
+        const pt = parsedCoordinates[i];
+        const dist = getDistance(currentLatLng.lat, currentLatLng.lng, pt[0], pt[1]);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestIdx = i;
+        }
+      }
+
+      // If user is near the route, calculate distance from closest point to end
+      if (closestIdx !== -1 && minDistance < 0.5) { // User is within 500 meters of the trail
+        let remainingDistance = 0;
+        for (let i = closestIdx; i < parsedCoordinates.length - 1; i++) {
+          const pt1 = parsedCoordinates[i];
+          const pt2 = parsedCoordinates[i + 1];
+          remainingDistance += getDistance(pt1[0], pt1[1], pt2[0], pt2[1]);
+        }
+        document.getElementById('stat-remaining').textContent = `${remainingDistance.toFixed(1)} km`;
+      } else {
+        // User is off-route
+        document.getElementById('stat-remaining').textContent = 'Off Trail';
+      }
+    }
+
+    // --- GPX Native XML Parsing ---
+    function handleGpxLoad(gpxContent) {
+      try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(gpxContent, "text/xml");
+        
+        // Check for XML parsing error
+        const parseError = xmlDoc.getElementsByTagName("parsererror");
+        if (parseError.length > 0) {
+          throw new Error("Invalid XML formatting inside GPX file.");
+        }
+
+        const trkpts = xmlDoc.querySelectorAll("trkpt");
+        if (trkpts.length === 0) {
+          // Fallback to route points (rtept) or waypoints (wpt) if no track points
+          const rtepts = xmlDoc.querySelectorAll("rtept");
+          const wpts = xmlDoc.querySelectorAll("wpt");
+          const fallbackPts = rtepts.length > 0 ? rtepts : wpts;
+
+          if (fallbackPts.length === 0) {
+            throw new Error("No coordinate track points found in GPX file.");
+          }
+          parseGpxNodes(fallbackPts);
+        } else {
+          parseGpxNodes(trkpts);
+        }
+        
+        if (parsedCoordinates.length === 0) {
+          throw new Error("Failed to parse valid coordinate pairs.");
+        }
+
+        renderRouteOnMap();
+        updateRouteStatsUI();
+      } catch (err) {
+        alert("Error parsing GPX file: " + err.message);
+        console.error(err);
+      }
+    }
+
+    function parseGpxNodes(points) {
+      parsedCoordinates = [];
+      parsedElevations = [];
+      totalDistanceKm = 0;
+      elevationGainM = 0;
+      elevationLossM = 0;
+
+      let lastLat = null;
+      let lastLon = null;
+      let lastEle = null;
+
+      points.forEach(pt => {
+        const lat = parseFloat(pt.getAttribute("lat"));
+        const lon = parseFloat(pt.getAttribute("lon"));
+        
+        if (!isNaN(lat) && !isNaN(lon)) {
+          parsedCoordinates.push([lat, lon]);
+
+          // Parse elevation
+          const eleNode = pt.querySelector("ele");
+          let ele = null;
+          if (eleNode) {
+            ele = parseFloat(eleNode.textContent);
+            parsedElevations.push(ele);
+          } else {
+            parsedElevations.push(null);
+          }
+
+          // Calculate distance accumulation
+          if (lastLat !== null && lastLon !== null) {
+            totalDistanceKm += getDistance(lastLat, lastLon, lat, lon);
+          }
+
+          // Calculate elevation profile (cumulative gain/loss)
+          if (lastEle !== null && ele !== null) {
+            const diff = ele - lastEle;
+            if (diff > 0) {
+              elevationGainM += diff;
+            } else {
+              elevationLossM += Math.abs(diff);
+            }
+          }
+
+          lastLat = lat;
+          lastLon = lon;
+          if (ele !== null) lastEle = ele;
+        }
+      });
+    }
+
+    function renderRouteOnMap() {
+      // Clean up existing route renderings
+      if (routePolyline) map.removeLayer(routePolyline);
+      if (startMarker) map.removeLayer(startMarker);
+      if (endMarker) map.removeLayer(endMarker);
+
+      // Render polyline (thick high-contrast glowing neon green)
+      routePolyline = L.polyline(parsedCoordinates, {
+        color: '#10b981',
+        weight: 6,
+        opacity: 0.95,
+        lineJoin: 'round',
+        shadowColor: '#000000',
+        shadowBlur: 10
+      }).addTo(map);
+
+      // Zoom map to show entire route
+      map.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
+
+      // Custom markers for Start and End of Route
+      const startCoord = parsedCoordinates[0];
+      const endCoord = parsedCoordinates[parsedCoordinates.length - 1];
+
+      // Custom SVGs for markers to render correctly offline
+      const startSvg = `
+        <svg viewBox="0 0 24 24" width="30" height="30" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="9" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
+          <text x="50%" y="55%" fill="#ffffff" font-weight="bold" font-size="10" font-family="sans-serif" dominant-baseline="middle" text-anchor="middle">S</text>
+        </svg>`;
+
+      const endSvg = `
+        <svg viewBox="0 0 24 24" width="30" height="30" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="9" fill="#ef4444" stroke="#ffffff" stroke-width="2"/>
+          <text x="50%" y="55%" fill="#ffffff" font-weight="bold" font-size="10" font-family="sans-serif" dominant-baseline="middle" text-anchor="middle">E</text>
+        </svg>`;
+
+      const startIcon = L.divIcon({
+        html: startSvg,
+        className: '',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+
+      const endIcon = L.divIcon({
+        html: endSvg,
+        className: '',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+
+      startMarker = L.marker(startCoord, { icon: startIcon }).addTo(map)
+        .bindPopup("<b>Route Start Point</b>");
+      
+      endMarker = L.marker(endCoord, { icon: endIcon }).addTo(map)
+        .bindPopup("<b>Route Destination</b>");
+    }
+
+    function updateRouteStatsUI() {
+      const card = document.getElementById('stats-card');
+      card.style.display = 'block';
+
+      document.getElementById('stat-distance').textContent = `${totalDistanceKm.toFixed(2)} km`;
+      document.getElementById('stat-points').textContent = parsedCoordinates.length;
+
+      // Render elevation data if available
+      const hasElevation = parsedElevations.some(e => e !== null);
+      if (hasElevation) {
+        document.getElementById('stat-elevation').textContent = `+${Math.round(elevationGainM)}m / -${Math.round(elevationLossM)}m`;
+      } else {
+        document.getElementById('stat-elevation').textContent = 'No Elev Data';
+      }
+
+      if (isTracking && userLatLng) {
+        calculateDistanceRemaining(userLatLng);
+      }
+    }
+
+    // --- Bounding Box / Route Map Tile Downloader ---
+    let pendingTileUrls = [];
+    let totalDownloadSize = 0;
+    let completedDownloadSize = 0;
+
+    function openDownloadModal() {
+      // Ensure Leaflet is fully initialized
+      if (!map) return;
+
+      const modal = document.getElementById('cache-modal');
+      const title = document.getElementById('modal-title');
+      const bodyText = document.getElementById('modal-body-text');
+      const estimateText = document.getElementById('tile-estimate-text');
+      const progressContainer = document.getElementById('progress-container');
+      const modalButtons = document.getElementById('modal-buttons');
+
+      // Reset modal UI elements
+      modal.classList.add('show');
+      title.textContent = "Download Offline Map";
+      progressContainer.style.display = "none";
+      modalButtons.innerHTML = `
+        <button class="btn btn-dark" style="flex: 1;" id="close-modal-btn" onclick="closeDownloadModal()">Cancel</button>
+        <button class="btn btn-primary" style="flex: 1.5;" id="confirm-download-btn" onclick="startTileDownload()">Start Download</button>
+      `;
+
+      estimateText.innerHTML = "Calculating bounding box tiles...";
+
+      // Identify bounding box for calculations (prefer active GPX route bounds; fallback to current map window)
+      let bounds = null;
+      if (routePolyline) {
+        bounds = routePolyline.getBounds();
+      } else {
+        bounds = map.getBounds();
+      }
+
+      // Generate the list of offline tile URLs to fetch
+      pendingTileUrls = calculateTilesInBounds(bounds);
+      totalDownloadSize = pendingTileUrls.length;
+
+      if (totalDownloadSize === 0) {
+        estimateText.innerHTML = "No map tiles detected in the selected bounds.";
+        document.getElementById('confirm-download-btn').disabled = true;
+        return;
+      }
+
+      const approxSizeMb = (totalDownloadSize * 0.025).toFixed(1); // Assume 25KB per tile average size
+      
+      let htmlContent = `
+        Area Bounding Box: 
+        <br>North: ${bounds.getNorth().toFixed(4)}°, South: ${bounds.getSouth().toFixed(4)}°
+        <br>West: ${bounds.getWest().toFixed(4)}°, East: ${bounds.getEast().toFixed(4)}°
+        <div class="tile-estimate" style="border-color: ${totalDownloadSize > MAX_TILE_LIMIT ? 'var(--danger)' : 'var(--border-color)'}">
+          Estimated Tiles: <b>${totalDownloadSize}</b>
+          <br>Estimated Space: <b>${approxSizeMb} MB</b>
+        </div>
+      `;
+
+      if (totalDownloadSize > MAX_TILE_LIMIT) {
+        htmlContent += `
+          <div style="color: var(--danger); font-size: 0.8rem; margin-top: 8px; font-weight: 500;">
+            ⚠️ Area is too large! Downloader is capped at ${MAX_TILE_LIMIT} tiles to prevent device storage overload. Please zoom closer to the trail to download map.
+          </div>
+        `;
+        estimateText.innerHTML = htmlContent;
+        document.getElementById('confirm-download-btn').style.display = "none";
+      } else {
+        estimateText.innerHTML = htmlContent;
+      }
+    }
+
+    function closeDownloadModal() {
+      // Cancel download loop if running
+      stopDownloadRequested = true;
+      const modal = document.getElementById('cache-modal');
+      modal.classList.remove('show');
+    }
+
+    // Computes all tile URLs covering the bounding box across multiple zoom levels
+    function calculateTilesInBounds(bounds) {
+      const urls = [];
+      const west = bounds.getWest();
+      const east = bounds.getEast();
+      const north = bounds.getNorth();
+      const south = bounds.getSouth();
+
+      // We download detail tiles starting from current map zoom level up to max zoom 16/17
+      const currentZoom = Math.max(12, Math.floor(map.getZoom()));
+      const minZoom = Math.max(11, currentZoom - 1);
+      const maxZoom = 16; // Level 16 gives optimal offline detail for hikers
+
+      for (let z = minZoom; z <= maxZoom; z++) {
+        const xMin = lon2tile(west, z);
+        const xMax = lon2tile(east, z);
+        const yMin = lat2tile(north, z); // Note: north lat matches lower Y tile
+        const yMax = lat2tile(south, z);
+
+        for (let x = Math.min(xMin, xMax); x <= Math.max(xMin, xMax); x++) {
+          for (let y = Math.min(yMin, yMax); y <= Math.max(yMin, yMax); y++) {
+            // Keep coordinates in bounds of maximum coordinates for the zoom level
+            const maxCoord = Math.pow(2, z) - 1;
+            if (x >= 0 && x <= maxCoord && y >= 0 && y <= maxCoord) {
+              const url = OSM_TILE_URL
+                .replace('{z}', z)
+                .replace('{x}', x)
+                .replace('{y}', y);
+              urls.push(url);
+            }
+          }
+        }
+      }
+      return [...new Set(urls)]; // Deduplicate URLs
+    }
+
+    async function startTileDownload() {
+      stopDownloadRequested = false;
+      completedDownloadSize = 0;
+
+      const progressContainer = document.getElementById('progress-container');
+      const progressFill = document.getElementById('progress-bar');
+      const progressText = document.getElementById('progress-text');
+      const progressPercentage = document.getElementById('progress-percentage');
+      const modalButtons = document.getElementById('modal-buttons');
+
+      progressContainer.style.display = "block";
+      document.getElementById('tile-estimate-text').style.display = "none";
+      modalButtons.innerHTML = `
+        <button class="btn btn-dark" style="width: 100%;" id="cancel-download-btn" onclick="closeDownloadModal()">Stop Download</button>
+      `;
+
+      // Open cache storage reference
+      const cache = await caches.open(TILE_CACHE_NAME);
+      const concurrencyLimit = 6; // Concurrent network download pipes
+
+      // Queue processor
+      const downloadQueue = [...pendingTileUrls];
+      const totalCount = downloadQueue.length;
+
+      async function runWorker() {
+        while (downloadQueue.length > 0 && !stopDownloadRequested) {
+          const url = downloadQueue.shift();
+          if (!url) break;
+
+          activeDownloads++;
+          try {
+            // Check cache first to avoid redundant downloads
+            const match = await cache.match(url);
+            if (!match) {
+              // Fetch tile, with timeout protection
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 10000);
+              
+              const response = await fetch(url, { signal: controller.signal });
+              clearTimeout(timeoutId);
+
+              if (response.status === 200) {
+                await cache.put(url, response);
+              }
+            }
+          } catch (e) {
+            console.error('Tile download error:', e, url);
+          } finally {
+            activeDownloads--;
+            completedDownloadSize++;
+            
+            // Update UI progress safely
+            const percent = Math.round((completedDownloadSize / totalCount) * 100);
+            progressFill.style.width = `${percent}%`;
+            progressPercentage.textContent = `${percent}%`;
+            progressText.textContent = `Tile ${completedDownloadSize} of ${totalCount}`;
+          }
+        }
+      }
+
+      // Spin up concurrent download workers
+      const workers = Array(concurrencyLimit).fill(null).map(() => runWorker());
+      await Promise.all(workers);
+
+      // Finish operations check
+      if (stopDownloadRequested) {
+        progressText.textContent = "Stopped by user.";
+        progressText.style.color = "var(--danger)";
+        setTimeout(() => {
+          document.getElementById('tile-estimate-text').style.display = "block";
+          progressContainer.style.display = "none";
+        }, 1500);
+      } else {
+        progressText.textContent = "Download complete!";
+        progressText.style.color = "var(--primary)";
+        progressPercentage.textContent = "100%";
+        progressFill.style.backgroundColor = "var(--primary)";
+        
+        modalButtons.innerHTML = `
+          <button class="btn btn-primary" style="width: 100%;" id="close-modal-btn" onclick="closeDownloadModal()">Done</button>
+        `;
+      }
+    }
+
+    // --- Safety Beacon Logic ---
+    let safetyTimerActive = false;
+    let safetyJobId = null;
+
+    function openSafetyModal() {
+      document.getElementById('safety-modal').style.display = 'flex';
+      
+      // Request device orientation permissions if iOS 13+ (must be triggered by user action)
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().catch(console.error);
+      }
+    }
+
+    function closeSafetyModal() {
+      document.getElementById('safety-modal').style.display = 'none';
+    }
+
+    function activateSafetyTimer() {
+      const name = document.getElementById('safety-name').value;
+      const email = document.getElementById('safety-email').value;
+      const time = document.getElementById('safety-time').value;
+      const notes = document.getElementById('safety-notes').value;
+      
+      if (!name || !email || !time) {
+        alert('Please fill in Name, Email, and Return Time to activate the SOS beacon.');
+        return;
+      }
+      
+      // The deployed Google App Script Web App URL
+      const APP_SCRIPT_URL = 'https://script.google.com/macros/s/DUMMY_URL/exec';
+      
+      safetyJobId = Math.random().toString(36).substring(7); // Generate unique job ID
+      
+      // Perform background fetch (using no-cors or standard POST)
+      fetch(APP_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        body: JSON.stringify({
+          action: 'START_TIMER',
+          jobId: safetyJobId,
+          name: name,
+          email: email,
+          timeString: time,
+          notes: notes
+        })
+      }).catch(e => console.error("SOS Network Error:", e));
+      
+      safetyTimerActive = true;
+      
+      const badge = document.getElementById('safety-timer-badge');
+      badge.style.display = 'flex';
+      document.getElementById('safety-timer-countdown').textContent = `SOS: ${time}`;
+      
+      closeSafetyModal();
+      startTracking();
+    }
+    
+    function cancelSafetyTimer() {
+      if (confirm('Are you safe? This will cancel the automatic SOS email.')) {
+        const APP_SCRIPT_URL = 'https://script.google.com/macros/s/DUMMY_URL/exec';
+        
+        fetch(APP_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'text/plain'
+          },
+          body: JSON.stringify({
+            action: 'CANCEL_TIMER',
+            jobId: safetyJobId
+          })
+        }).catch(e => console.error("Cancel Network Error:", e));
+
+        safetyTimerActive = false;
+        safetyJobId = null;
+        document.getElementById('safety-timer-badge').style.display = 'none';
+        alert('Safety beacon cancelled successfully.');
+      }
+    }
+
+    // --- Survival Mode Logic ---
+    let survivalModeActive = false;
+    let survivalPollingInterval = null;
+
+    function toggleSurvivalMode() {
+      survivalModeActive = !survivalModeActive;
+      const overlay = document.getElementById('survival-overlay');
+      const body = document.body;
+      
+      if (survivalModeActive) {
+        body.classList.add('survival-mode');
+        // If GPS is tracking, keep it on but reduce polling overhead visually by hiding map
+        if (!isTracking) startTracking();
+        
+        // Start polling for signal
+        startSurvivalPolling();
+      } else {
+        body.classList.remove('survival-mode');
+        stopSurvivalPolling();
+        document.getElementById('survival-status').textContent = 'SEARCHING FOR NETWORK...';
+        document.getElementById('survival-status').style.color = 'var(--warning)';
+        document.getElementById('emergency-call-btn').style.display = 'none';
+      }
+    }
+
+    function startSurvivalPolling() {
+      // Poll every 10 seconds for demonstration, normally 60 seconds
+      survivalPollingInterval = setInterval(() => {
+        if (userLatLng) {
+          document.getElementById('survival-coords').textContent = `${userLatLng.lat.toFixed(5)}, ${userLatLng.lng.toFixed(5)}`;
+        }
+        
+        // Attempt fetch to detect internet
+        fetch('https://1.1.1.1/cdn-cgi/trace', { mode: 'no-cors', cache: 'no-store' })
+          .then(() => {
+            // Signal found!
+            handleSignalFound();
+          })
+          .catch(() => {
+            // Still offline
+            console.log('Survival Mode: No signal detected.');
+          });
+      }, 10000); 
+    }
+
+    function stopSurvivalPolling() {
+      if (survivalPollingInterval) {
+        clearInterval(survivalPollingInterval);
+        survivalPollingInterval = null;
+      }
+    }
+
+    function handleSignalFound() {
+      stopSurvivalPolling();
+      
+      // Update UI
+      const statusEl = document.getElementById('survival-status');
+      statusEl.textContent = 'SIGNAL FOUND - SOS MESSAGE SENT!';
+      statusEl.style.color = 'var(--primary)';
+      
+      document.getElementById('emergency-call-btn').style.display = 'block';
+      
+      // Play loud siren sound (browser may block if not interacted)
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // 800Hz
+        oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.5); // 1200Hz
+        oscillator.connect(audioCtx.destination);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 2); // Play for 2 seconds
+      } catch (e) {
+        console.error("Audio playback failed", e);
+      }
+      
+      // Here we would fire the fetch to send the actual SOS message with coordinates
+      console.log('SENDING EMERGENCY SOS PAYLOAD:', userLatLng);
+    }
+
+    // --- Setup DOM Events ---
+    function setupEventListeners() {
+      // Hidden input click triggers
+      document.getElementById('load-route-btn').addEventListener('click', () => {
+        document.getElementById('gpx-file-input').click();
+      });
+
+      // Handle loading GPX file via Reader
+      document.getElementById('gpx-file-input').addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          handleGpxLoad(e.target.result);
+        };
+        reader.readAsText(file);
+      });
+
+      // Recenter button click
+      document.getElementById('recenter-btn').addEventListener('click', () => {
+        if (!isTracking) {
+          // Prompt user to start GPS if not tracking
+          startTracking();
+        } else {
+          // Lock to center
+          setAutoFollow(true);
+        }
+      });
+
+      // Navigation toggle button click
+      document.getElementById('nav-btn').addEventListener('click', () => {
+        if (isTracking) {
+          stopTracking();
+        } else {
+          // Instead of starting immediately, open safety modal
+          openSafetyModal();
+        }
+      });
+      
+      // Safety Modal Buttons
+      document.getElementById('skip-safety-btn').addEventListener('click', () => {
+        closeSafetyModal();
+        startTracking();
+      });
+      
+      document.getElementById('activate-safety-btn').addEventListener('click', () => {
+        activateSafetyTimer();
+      });
+      
+      document.getElementById('safety-timer-badge').addEventListener('click', cancelSafetyTimer);
+
+      // Survival Mode Buttons
+      document.getElementById('survival-btn').addEventListener('click', toggleSurvivalMode);
+      document.getElementById('exit-survival-btn').addEventListener('click', toggleSurvivalMode);
+
+      // Download Offline Map button click
+      document.getElementById('download-map-btn').addEventListener('click', () => {
+        openDownloadModal();
+      });
+      
+      // Close modal on background click
+      document.getElementById('cache-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'cache-modal') {
+          closeDownloadModal();
+        }
+      });
+    }
+
+    // --- App Entry Point ---
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      setupEventListeners();
+    });
+  </script>
+</body>
+</html>
